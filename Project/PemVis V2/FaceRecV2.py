@@ -1,0 +1,112 @@
+import os
+import cv2 
+import uuid
+import datetime
+import face_alignment
+from skimage import io
+import pandas
+import numpy
+from serial import Serial
+
+fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._3D, device='cpu', flip_input=True)
+arduinoData = Serial('com6', 9600)
+
+def reg():
+    name = input("Your Name ? ")
+    key = cv2.waitKey()
+    webcam = cv2.VideoCapture(1)
+    while True:
+        try:
+            check, frame = webcam.read()
+            print(check) #prints true as long as the webcam is running
+            print(frame) #prints matrix values of each framecd 
+            cv2.imshow("Capturing", frame)
+            key = cv2.waitKey(1)
+            if key == ord('s'): 
+                outfile = 'dataset/%s.jpg' % (str(name))
+                cv2.imwrite(outfile, img=frame)
+                print("Turning off camera.")
+                webcam.release()
+                print("Camera off.")
+                print("Program ended.")
+                cv2.destroyAllWindows()
+                break
+        except(KeyboardInterrupt):
+            print("Turning off camera.")
+            webcam.release()
+            print("Camera off.")
+            print("Program ended.")
+            cv2.destroyAllWindows()
+            break
+    input_img = io.imread('dataset/%s.jpg' % (str(name))) 
+    preds = fa.get_landmarks(input_img)[-1]
+    prediction = pandas.DataFrame(preds)
+    csv_hasil = prediction.to_csv('%s.csv' % str(name), index = False) 
+
+def matching():
+    key = cv2.waitKey()
+    webcam = cv2.VideoCapture(1)
+    while True:
+        try:
+            check, frame = webcam.read()
+            print(check) #prints true as long as the webcam is running
+            print(frame) #prints matrix values of each framecd 
+            cv2.imshow("Capturing", frame)
+            key = cv2.waitKey(1)
+            if key == ord('s'): 
+                outfile = 'input.jpg'
+                cv2.imwrite(outfile, img=frame)
+                print("Turning off camera.")
+                webcam.release()
+                print("Camera off.")
+                print("Program ended.")
+                cv2.destroyAllWindows()
+                break
+            
+        except(KeyboardInterrupt):
+            print("Turning off camera.")
+            webcam.release()
+            print("Camera off.")
+            print("Program ended.")
+            cv2.destroyAllWindows()
+            break
+
+    input_img_matching = io.imread('input.jpg')
+    input_matching = fa.get_landmarks(input_img_matching)[-1] #numpy Array
+
+    for filename in os.listdir("."):
+        if filename.endswith(".csv"):
+            db = pandas.read_csv(filename)
+            db_numpy = db.to_numpy()
+            sq_dist = numpy.sum((db_numpy - input_matching)**2, axis=0)
+            dist = numpy.sqrt(sq_dist)
+
+            if(dist[0] < 1000 and dist[1] < 1000 and dist[2] < 1000):
+                print("In")
+                t=0
+                while(t<100000):
+                    if(t % 10 == 0):
+                        print(t)
+                    t+=1
+                arduinoData.write(b'1')
+            else:
+                print("Out")
+
+def led_on():
+    arduinoData.write(b'1')
+
+def led_off():
+    arduinoData.write(b'0')
+
+while(1):
+    t = 0
+    while(t<100000):
+        if(t % 10 == 0):
+            print(t)
+        t+=1
+    led_off()
+    pilihan = input("Register[1] / Existing User[0]")
+    if pilihan == "0":
+        matching()
+    elif pilihan == "1":
+        reg()
